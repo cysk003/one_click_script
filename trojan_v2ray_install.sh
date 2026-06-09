@@ -2956,6 +2956,7 @@ function downloadTrojanBin(){
             downloadFilenameTrojanGo="trojan-go-fork-linux-armv8.zip"
         fi
 
+        # https://github.com/Potterli20/trojan-go-fork/releases/download/V2026.06.07/trojan-go-fork-linux-amd64-v2.zip
         # https://github.com/Potterli20/trojan-go-fork/releases/download/V2023.02.15/trojan-go-fork-linux-arm.zip
         # https://github.com/Potterli20/trojan-go-fork/releases/download/V2023.02.15/trojan-go-fork-linux-armv8.zip
         # https://github.com/Potterli20/trojan-go-fork/releases/download/V2023.03.08/trojan-go-fork-linux-amd64.zip
@@ -3010,8 +3011,8 @@ function installTrojanServer(){
     green " 3 修改版 Trojan-go 支持 websocket by fregie (support websocket)"
     green " 4 修改版 Trojan-go 支持模拟浏览器指纹 支持 websocket by Potterli20 (support websocket)"
     echo
-    read -r -p "请选择哪种 Trojan ? 直接回车默认选2, 请输入纯数字:" isTrojanTypeInput
-    isTrojanTypeInput=${isTrojanTypeInput:-2}
+    read -r -p "请选择哪种 Trojan ? 直接回车默认选4, 请输入纯数字:" isTrojanTypeInput
+    isTrojanTypeInput=${isTrojanTypeInput:-4}
 
     if [[ "${isTrojanTypeInput}" == "1" ]]; then
         trojanInstallType="1"

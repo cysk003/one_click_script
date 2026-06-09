@@ -61,7 +61,7 @@ function rebootSystem(){
 
 	if [[ ${isRebootInput} == [Yy] ]]; then
 		${sudoCmd} reboot
-	else 
+	else
 		exit
 	fi
 }
@@ -72,7 +72,7 @@ function promptContinueOpeartion(){
 
 	if [[ $isContinueInput == [Yy] ]]; then
 		echo ""
-	else 
+	else
 		exit
 	fi
 }
@@ -87,6 +87,8 @@ osReleaseVersionNo=""
 osReleaseVersionCodeName="CodeName"
 osSystemPackage="no"
 osSystemMdPath="/lib/systemd/system/"
+pveVersion=""
+pveVersionShort=""
 
 
 pveStatusIOMMU=""
@@ -121,8 +123,8 @@ function checkCPU(){
 
 # 检测系统发行版
 function getLinuxOSRelease(){
-	
-    if [[ -f /etc/redhat-release ]]; then
+
+	if [[ -f /etc/redhat-release ]]; then
         osRelease="centos"
         osSystemPackage="yum"
 		osSystemMdPath="/usr/lib/systemd/system/"
@@ -160,10 +162,17 @@ function getLinuxOSRelease(){
         if [ -n $VERSION_CODENAME ]; then
             osReleaseVersionCodeName=$VERSION_CODENAME
         fi
-	fi
+    fi
 
-	pveVersion=$(pveversion | grep pve-manager | awk -F '/' '{print $2}')
-	pveVersionShort=$(pveversion | grep pve-manager | awk -F '/' '{print $2}' | awk -F '.' '{print $1}')
+
+	if command -v pveversion >/dev/null 2>&1; then
+		pveVersionLine=$(pveversion 2>/dev/null | grep pve-manager)
+		if [[ -n "${pveVersionLine}" ]]; then
+
+			pveVersion=$(echo "${pveVersionLine}" | awk -F '/' '{print $2}')
+			pveVersionShort=$(echo "${pveVersion}" | awk -F '.' '{print $1}')
+		fi
+	fi
 
     [[ -z $(echo $SHELL|grep zsh) ]] && osSystemShell="bash" || osSystemShell="zsh"
 
@@ -183,11 +192,11 @@ function installSoft(){
 	if [[ "${osRelease}" == "debian" || "${osRelease}" == "ubuntu" ]]; then
 		if ! dpkg -l | grep -qw wget; then
 			${osSystemPackage} -y install wget curl
-			
+
 			# https://stackoverflow.com/questions/11116704/check-if-vt-x-is-activated-without-having-to-reboot-in-linux
 			${osSystemPackage} -y install cpu-checker
 
-			${osSystemPackage} install -y vim-gui-common vim-runtime vim 
+			${osSystemPackage} install -y vim-gui-common vim-runtime vim
 		fi
 
 	elif [[ "${osRelease}" == "centos" ]]; then
@@ -230,7 +239,7 @@ function installIperf3(){
 		${sudoCmd} wget -O /usr/bin/iperf3 https://iperf.fr/download/ubuntu/iperf3_3.1.3
 		${sudoCmd} chmod +x /usr/bin/iperf3
     else
-		${osSystemPackage} -y install iperf3   
+		${osSystemPackage} -y install iperf3
     fi
 
 	green " ================================================== "
@@ -274,7 +283,7 @@ checkFirewallStatus(){
 		isFirewalldRunningStatusText=$(systemctl is-active firewalld)
 		if [[ ${isFirewalldRunningStatusText} == "active" ]]; then
 			isFirewallRunningStatus="yes"
-		else	
+		else
 			isFirewallRunningStatus="no"
 		fi
 
@@ -284,7 +293,7 @@ checkFirewallStatus(){
 		isUfwRunningStatusText=$(ufw status | grep active | awk '{print $2}')
 		if [[ ${isUfwRunningStatusText} == "active" ]]; then
 			isFirewallRunningStatus="yes"
-		else	
+		else
 			isFirewallRunningStatus="no"
 		fi
 	fi
@@ -295,26 +304,26 @@ checkFirewallStatus(){
 }
 
 addFirewallPort(){
-	
+
 	if [[ $1 -gt 1 && $1 -le 65535 ]]; then
-		
-		netstat -tulpn | grep [0-9]:$1 -q ; 
-		if [ $? -eq 1 ]; then 
-			green " 端口号 $1 没有被占用" 
-			false 
-		else 
-			red " 端口号 $1 已被占用! " 
+
+		netstat -tulpn | grep [0-9]:$1 -q ;
+		if [ $? -eq 1 ]; then
+			green " 端口号 $1 没有被占用"
+			false
+		else
+			red " 端口号 $1 已被占用! "
 			true
 		fi
 	else
-		red "输入的端口号错误! 必须是[1-65535] 纯数字!" 
+		red "输入的端口号错误! 必须是[1-65535] 纯数字!"
 	fi
 
-	if [[ ${isFirewallRunningStatus} == "yes" ]]; then	
+	if [[ ${isFirewallRunningStatus} == "yes" ]]; then
 		if [[ "${osRelease}" == "centos" ]]; then
 
-			${sudoCmd} firewall-cmd --permanent --zone=public --add-port=$1/tcp 
-			${sudoCmd} firewall-cmd --permanent --zone=public --add-port=$1/udp 
+			${sudoCmd} firewall-cmd --permanent --zone=public --add-port=$1/tcp
+			${sudoCmd} firewall-cmd --permanent --zone=public --add-port=$1/udp
             ${sudoCmd} firewall-cmd --reload
 
 		elif [[ "${osRelease}" == "debian" ]]; then
@@ -325,9 +334,9 @@ addFirewallPort(){
 			${sudoCmd} ufw allow $1/tcp
 			${sudoCmd} ufw allow $1/udp
 		fi
-	
+
 	else
-		green "     当前系统防火墙没有开启, 不需要添加规则 "			
+		green "     当前系统防火墙没有开启, 不需要添加规则 "
 	fi
 
 }
@@ -361,7 +370,6 @@ Del_iptables(){
 
 function updateYumAptSource(){
 	if [[ "${osRelease}" == "centos" ]]; then
-
 		echo
 
 	elif [[ "${osRelease}" == "debian" ]]; then
@@ -370,7 +378,6 @@ function updateYumAptSource(){
 	elif [[ "${osRelease}" == "ubuntu" ]]; then
 		updateUbuntuAptSource
 	fi
-
 }
 
 function updateUbuntuAptSource(){
@@ -378,7 +385,7 @@ function updateUbuntuAptSource(){
 	green " 准备更新源 为阿里云 "
 
 	${sudoCmd} cp /etc/apt/sources.list /etc/apt/sources.list.bak
-	
+
 	cat > /etc/apt/sources.list <<-EOF
 
 deb http://mirrors.aliyun.com/ubuntu/ ${osReleaseVersionCodeName} main restricted universe multiverse
@@ -422,27 +429,32 @@ EOF
 }
 
 
-
+# https://www.qichiyu.com/686.html
 function updatePVEAptSource(){
 
 	isPVESystem=$(cat /etc/issue | grep "Proxmox")
 
 	green " ================================================== "
 
-	if [[ -n "${isPVESystem}" ]]; then 
+	if [[ -n "${isPVESystem}" ]]; then
 		green " 准备关闭企业更新源, 添加非订阅版更新源 "
 		${sudoCmd} sed -i 's|deb https://enterprise.proxmox.com/debian/pve buster pve-enterprise|#deb https://enterprise.proxmox.com/debian/pve buster pve-enterprise|g' /etc/apt/sources.list.d/pve-enterprise.list
 		${sudoCmd} sed -i 's|deb https://enterprise.proxmox.com/debian/pve bullseye pve-enterprise|#deb https://enterprise.proxmox.com/debian/pve bullseye pve-enterprise|g' /etc/apt/sources.list.d/pve-enterprise.list
 		${sudoCmd} sed -i 's|deb https://enterprise.proxmox.com/debian/pve bookworm pve-enterprise|#deb https://enterprise.proxmox.com/debian/pve bookworm pve-enterprise|g' /etc/apt/sources.list.d/pve-enterprise.list
+
 		${sudoCmd} sed -i 's|deb https://enterprise.proxmox.com/debian/ceph-quincy bookworm enterprise|#deb https://enterprise.proxmox.com/debian/ceph-quincy bookworm enterprise|g' /etc/apt/sources.list.d/ceph.list
+		${sudoCmd} sed -i 's|deb http://download.proxmox.com/debian/ceph-quincy bookworm no-subscription|#deb http://download.proxmox.com/debian/ceph-quincy bookworm no-subscription|g' /etc/apt/sources.list.d/ceph.list
 
-
-		#echo 'deb http://download.proxmox.com/debian/pve buster pve-no-subscription' > /etc/apt/sources.list.d/pve-no-subscription.list
-		echo "deb http://download.proxmox.wiki/debian/pve ${osReleaseVersionCodeName} pve-no-subscription" > /etc/apt/sources.list.d/pve-no-subscription.list
-        
 		if [[ "${pveVersionShort}" == "8" ]] ; then
-		echo "deb http://download.proxmox.com/debian/ceph-quincy ${osReleaseVersionCodeName} no-subscription" > /etc/apt/sources.list.d/ceph.list
+		    echo "deb http://download.proxmox.com/debian/ceph-quincy ${osReleaseVersionCodeName} no-subscription" > /etc/apt/sources.list.d/ceph.list
 		fi
+
+		#echo "deb http://download.proxmox.com/debian/pve ${osReleaseVersionCodeName} pve-no-subscription" > /etc/apt/sources.list.d/pve-no-subscription.list
+		#echo "deb http://download.proxmox.wiki/debian/pve ${osReleaseVersionCodeName} pve-no-subscription" > /etc/apt/sources.list.d/pve-no-subscription.list
+        #echo "deb https://mirrors.ustc.edu.cn/proxmox/debian ${osReleaseVersionCodeName} pve-no-subscription" > /etc/apt/sources.list.d/pve-no-subscription.list
+
+
+
 
 		if [[ "${pveVersionShort}" == "6" ]] ; then
 			wget http://download.proxmox.com/debian/proxmox-ve-release-6.x.gpg -O /etc/apt/trusted.gpg.d/proxmox-ve-release-6.x.gpg
@@ -450,22 +462,30 @@ function updatePVEAptSource(){
 			wget https://enterprise.proxmox.com/debian/proxmox-release-bullseye.gpg -O /etc/apt/trusted.gpg.d/proxmox-release-bullseye.gpg
 		elif [[ "${pveVersionShort}" == "8" ]] ; then
 			wget https://enterprise.proxmox.com/debian/proxmox-release-bookworm.gpg -O /etc/apt/trusted.gpg.d/proxmox-release-bookworm.gpg
-		fi
- 
+            sed -i.backup -z "s/res === null || res === undefined || \!res || res\n\t\t\t.data.status.toLowerCase() \!== 'active'/false/g" /usr/share/javascript/proxmox-widget-toolkit/proxmoxlib.js && systemctl restart pveproxy.service
+		elif [[ "${pveVersionShort}" == "9" ]] ; then
+            cat <<'EOF' >/etc/apt/apt.conf.d/no-nag-script
+DPkg::Post-Invoke { "dpkg -V proxmox-widget-toolkit | grep -q '/proxmoxlib\.js$'; if [ $? -eq 1 ]; then { echo 'Removing subscription nag from UI...'; sed -i '/.*data\.status.*active/{s/!//;s/active/NoMoreNagging/}' /usr/share/javascript/proxmox-widget-toolkit/proxmoxlib.js; }; fi"; };
+EOF
+
+            apt --reinstall install proxmox-widget-toolkit && service pveproxy restart
+        fi
+
 	fi
 
 
 
+
 	cp /etc/apt/sources.list /etc/apt/sources.list.bak
-	
+
 	if [[ "$osReleaseVersionNo" == "12" ]]; then
 		cat > /etc/apt/sources.list <<-EOF
 
-deb https://mirrors.ustc.edu.cn/debian/ ${osReleaseVersionCodeName} main contrib 
-deb-src https://mirrors.ustc.edu.cn/debian/ ${osReleaseVersionCodeName} main contrib 
+deb https://mirrors.ustc.edu.cn/debian/ ${osReleaseVersionCodeName} main contrib
+deb-src https://mirrors.ustc.edu.cn/debian/ ${osReleaseVersionCodeName} main contrib
 
-deb https://mirrors.ustc.edu.cn/debian/ ${osReleaseVersionCodeName}-updates main contrib 
-deb-src https://mirrors.ustc.edu.cn/debian/ ${osReleaseVersionCodeName}-updates main contrib 
+deb https://mirrors.ustc.edu.cn/debian/ ${osReleaseVersionCodeName}-updates main contrib
+deb-src https://mirrors.ustc.edu.cn/debian/ ${osReleaseVersionCodeName}-updates main contrib
 
 deb https://mirrors.ustc.edu.cn/debian-security/ bookworm-security main
 deb-src https://mirrors.ustc.edu.cn/debian-security/ bookworm-security main
@@ -521,10 +541,10 @@ EOF
 	green " 更新源成功 "
 	green " ================================================== "
 
-	# 备份APLinfo  
+	# 备份APLinfo
 	cp /usr/share/perl5/PVE/APLInfo.pm /usr/share/perl5/PVE/APLInfo_bak.pm
 
-	# 更换XLC源 
+	# 更换XLC源
 	sed -i 's|http://download.proxmox.com|https://mirrors.tuna.tsinghua.edu.cn/proxmox|g' /usr/share/perl5/PVE/APLInfo.pm
 
 	systemctl restart pvedaemon.service
@@ -641,10 +661,10 @@ iface vmbr0 inet static
     bridge_ports enp1s0
     bridge_stp off
     bridge_fd 0
-	
+
 
 EOF
-	
+
 	fi
 
 
@@ -662,14 +682,14 @@ sed -i -e "s/[0-9]\{1,3\}\.[0-9]\{1,3\}\.[0-9]\{1,3\}\.[0-9]\{1,3\}/${IPInput}/g
 
 
 
- 
+
 function lvextendDevRoot(){
 	echo
 	green "准备把剩余空间扩容给 /dev/pve/root 或 /dev/pve/data"
 	echo
 	read -p "是否把剩余空间都扩容到/dev/pve/root 或 /dev/pve/data, 否为不处理扩容空间. 直接回车默认为是, 请输入[Y/n]:" isExtendDevRootInput
 	isExtendDevRootInput=${isExtendDevRootInput:-Y}
-	
+
 	toExtendDevVolume="root"
 	if [[ $isExtendDevRootInput == [Yy] ]]; then
 
@@ -685,10 +705,10 @@ function lvextendDevRoot(){
 		fi
 
 		echo "lvextend -l +100%FREE -f pve/${toExtendDevVolume}"
-		lvextend -l +100%FREE -f "pve/${toExtendDevVolume}"  
-		resize2fs "/dev/mapper/pve-${toExtendDevVolume}" 
+		lvextend -l +100%FREE -f "pve/${toExtendDevVolume}"
+		resize2fs "/dev/mapper/pve-${toExtendDevVolume}"
 		green " 已成功删除 $1 逻辑卷, 并扩容给 /dev/pve/${toExtendDevVolume}"
-	else 
+	else
         green " 已成功删除 $1 逻辑卷, 剩余空间请自行处理扩容"
 		exit
 	fi
@@ -701,7 +721,7 @@ function deleteVGLVPVESwap(){
 	${sudoCmd} sed -i 's|/dev/pve/swap none swap|#/dev/pve/swap none swap|g' /etc/fstab
 
 	green " 请重启后 继续运行本脚本选择 第2项 继续完成删除"
-	
+
 	read -p "是否立即重启? 请输入[Y/n]:" isRebootInput
 	isRebootInput=${isRebootInput:-Y}
 
@@ -712,8 +732,8 @@ function deleteVGLVPVESwap(){
 	echo
 	echo "free"
 	free
-	
-	green " 请查看上面信息 swap 分区的 total, used, free 是否为0, 表明系统不在使用swap分区" 
+
+	green " 请查看上面信息 swap 分区的 total, used, free 是否为0, 表明系统不在使用swap分区"
 	echo ""
 
 	green " 删除 /dev/pve/swap 逻辑卷"
@@ -755,8 +775,8 @@ function deleteVGLVPVEData(){
 
 	echo "free"
 	free
-	
-	green " 请查看上面信息 swap 分区的 total, used, free 是否为0, 表明系统不在使用swap分区" 
+
+	green " 请查看上面信息 swap 分区的 total, used, free 是否为0, 表明系统不在使用swap分区"
 	echo ""
 
 	green " 删除 /dev/pve/data 逻辑卷"
@@ -765,7 +785,7 @@ function deleteVGLVPVEData(){
 
 	echo
 	green " 请查看删除 /dev/pve/data 逻辑卷后 多出来的空间容量"
-	vgdisplay pve | grep Free 
+	vgdisplay pve | grep Free
 
 	lvextendDevRoot "/dev/pve/data"
 
@@ -798,7 +818,7 @@ function checkIOMMU(){
 	green " 下面信息如果显示 KVM acceleration can be used 则已开启VT-x"
 	green " 下面信息如果显示 INFO: /dev/kvm does not exist. KVM acceleration can NOT be used 则未开启VT-x"
 	${sudoCmd} kvm-ok
-	
+
 
 
 	pveStatusIOMMUText=$(dmesg | grep IOMMU)
@@ -825,7 +845,7 @@ function checkIOMMU(){
 			echo " dmesg | grep x2apic "
 			echo "$pveStatusVTIntelText"
 		fi
-		
+
     else
 		if [[ -z "$pveStatusVTAMDText" ]]; then
 			pveStatusVTAMD="no"
@@ -836,7 +856,7 @@ function checkIOMMU(){
 			echo " dmesg | grep AMD-Vi "
 			echo "$pveStatusVTAMDText"
 		fi
-		
+
     fi
 
 	green " ================================================== "
@@ -951,7 +971,7 @@ function enableIOMMU(){
 	echo
 	yellow " PT Mode (pass-through using SR-IOV):Enables the IOMMU translation only when necessary, and can thus improve performance for PCIe devices not used in VMs."
 	green " ================================================== "
-	
+
 	# https://www.moenis.com/archives/103.html
 	# https://pvecli.xuan2host.com/grub/
 	# https://access.redhat.com/documentation/zh-cn/red_hat_virtualization/4.0/html/installation_guide/appe-configuring_a_hypervisor_host_for_pci_passthrough
@@ -967,7 +987,7 @@ function enableIOMMU(){
 
 	read -p "是否增加acpi=off 参数解决 ACPI BIOS Error 问题, 默认否, 请输入[y/N]:" isAddAMDCPUFixedACPIInput
 	isAddAMDCPUFixedACPIInput=${isAddAMDCPUFixedACPIInput:-n}
-	
+
 	isAddPcieText=""
 	if [[ $isAddPciePTInput == [Yy] ]]; then
 		isAddPcieText="iommu=pt"
@@ -1022,7 +1042,7 @@ function enableIOMMU(){
 		yellow " 添加模块黑名单，是否添加直通显卡所带声卡和麦克风: "
 		read -p "是否屏蔽显卡所带声卡和麦克风 用于直通, 直接回车默认是, 请输入[Y/n]:" isAddPcieVideoCardAudioInput
 		isAddPcieVideoCardAudioInput=${isAddPcieVideoCardAudioInput:-y}
-		
+
 		if [[ $isAddPcieVideoCardAudioInput == [Yy] ]]; then
 			echo "blacklist snd_soc_skl" >> /etc/modprobe.d/pve-blacklist.conf
 
@@ -1045,10 +1065,10 @@ function enableIOMMU(){
 
 		read -p "是否同时绑定显卡和声卡设备, 输入n为仅绑定显卡. 直接回车默认是, 请输入[Y/n]:" isAddPcieVideoAudoVfioInput
 		isAddPcieVideoAudoVfioInput=${isAddPcieVideoAudoVfioInput:-y}
-		
+
 		if [[ $isAddPcieVideoAudoVfioInput == [Yy] ]]; then
 			echo "options vfio-pci ids=${pveVfioVideoId},${pveVfioAudioId} disable_vga=1" > /etc/modprobe.d/vfio.conf
-		else 
+		else
 			echo "options vfio-pci ids=${pveVfioVideoId} disable_vga=1" > /etc/modprobe.d/vfio.conf
 		fi
 
@@ -1107,7 +1127,7 @@ function disableIOMMU(){
 	green " ================================================== "
 	green " 准备关闭IOMMU VT-d 关闭PCI直通功能. "
 	green " ================================================== "
-	
+
     if [[ $osCPU == "intel" ]]; then
 		${sudoCmd} sed -i 's/GRUB_CMDLINE_LINUX_DEFAULT="quiet.*"/GRUB_CMDLINE_LINUX_DEFAULT="quiet"/g' /etc/default/grub
 	else
@@ -1150,7 +1170,7 @@ EOF
 
 
 function genPVEVMDiskWithQM(){
-	
+
 	img2kvmPath="./img2kvm"
 	img2kvmRealPath="./img2kvm"
 
@@ -1173,7 +1193,7 @@ function genPVEVMDiskWithQM(){
 
 		promptTextDefaultDsmBootImgFilePath="/var/lib/vz/template/iso"
 		promptTextFailureCommand="img2kvm"
-	else 
+	else
 		green " ================================================== "
 		green " 准备使用 img2kvm 命令 导入${importTextPrompt}引导镜像文件 synoboot.img "
 		green " 可通过SSH WinSCP等软件上传 img2kvm 工具到当前目录下或/root目录下, 如果用户没有上传会自动从网上下载该命令 "
@@ -1182,7 +1202,7 @@ function genPVEVMDiskWithQM(){
 		echo
 		red " 或者通过PVE 网页上传 ${importTextPrompt}引导镜像文件 ${importFile} 到local存储盘"
 		red " 通过 PVE 网页上传成功后 文件路径一般为 /var/lib/vz/template/iso/${importFile}"
-		green " ================================================== "	
+		green " ================================================== "
 
 		promptTextDefaultDsmBootImgFilePath="/root"
 		promptTextFailureCommand="qm importdisk"
@@ -1192,7 +1212,7 @@ function genPVEVMDiskWithQM(){
 			img2kvmRealPath="/root/img2kvm"
 		elif [[ -f "${img2kvmPath}" ]]; then
 			img2kvmRealPath=${img2kvmPath}
-		else 
+		else
 			green " 没有找到 img2kvm 命令, 开始自动下载 img2kvm 命令到 ${HOME} 目录 "
 			mkdir -p  ${HOME}/
 			wget -P  ${HOME} http://dl.everun.top/softwares/utilities/img2kvm/img2kvm
@@ -1229,15 +1249,15 @@ function genPVEVMDiskWithQM(){
 			green " ================================================== "
 			exit
 		fi
-    fi   
+    fi
 
 	echo
 	echo
 	green " 开始导入${importTextPrompt}引导镜像文件 ${dsmBootImgFileRealPath} "
 	green " 引导镜像导入后, 默认储存在名称为local-lvm逻辑盘, 如果没有local-lvm盘 依次会导入到local盘储存, 也可储存在用户指定的逻辑盘 "
 
-	isHaveStorageLocalLvm=$(cat /etc/pve/storage.cfg | grep local-lvm) 
-	isHaveStorageLocal=$(cat /etc/pve/storage.cfg | grep local) 
+	isHaveStorageLocalLvm=$(cat /etc/pve/storage.cfg | grep local-lvm)
+	isHaveStorageLocal=$(cat /etc/pve/storage.cfg | grep local)
 
 
 	echo
@@ -1251,16 +1271,16 @@ function genPVEVMDiskWithQM(){
 
 	echo
 	echo
-	isHaveStorageUserInput=$(cat /etc/pve/storage.cfg | grep ${dsmBootImgStoragePathInput}) 
+	isHaveStorageUserInput=$(cat /etc/pve/storage.cfg | grep ${dsmBootImgStoragePathInput})
 
-	if [[ -n "$isHaveStorageUserInput" ]]; then	
+	if [[ -n "$isHaveStorageUserInput" ]]; then
 		green " 状态显示--系统有 存储盘 ${isHaveStorageUserInput}"
 
-	elif [[ -n "$isHaveStorageLocalLvm" ]]; then	
+	elif [[ -n "$isHaveStorageLocalLvm" ]]; then
 		green " 状态显示--系统没有 存储盘 ${isHaveStorageUserInput} 使用存储盘 local-lvm 代替"
 		dsmBootImgStoragePathInput="local-lvm"
 
-	elif [[ -n "$isHaveStorageLocal" ]]; then	
+	elif [[ -n "$isHaveStorageLocal" ]]; then
 		green " 状态显示--系统没有 存储盘 local-lvm, 使用存储盘 local 代替"
 		dsmBootImgStoragePathInput="local"
 	fi
@@ -1268,9 +1288,9 @@ function genPVEVMDiskWithQM(){
 
 	echo
 	if [[ -f ${dsmBootImgFileRealPath} ]]; then
-		
+
 		dsmBootImgResult=""
-		
+
 		if [[ $1 == "qm" ]]; then
 			echo "qm importdisk ${dsmBootImgVMIdInput} ${dsmBootImgFileRealPath} ${dsmBootImgStoragePathInput}"
 			echo
@@ -1286,12 +1306,12 @@ function genPVEVMDiskWithQM(){
 		echo
 		echo "${dsmBootImgResult}"
 		echo
-		
-		isImportStorageSuccess=$(echo ${dsmBootImgResult} | grep "Successfully") 
 
-		if [[ -n "$isImportStorageSuccess" ]]; then	
+		isImportStorageSuccess=$(echo ${dsmBootImgResult} | grep "Successfully")
+
+		if [[ -n "$isImportStorageSuccess" ]]; then
 			green " 成功导入 ${importTextPrompt}镜像文件! 请运行虚拟机继续安装${importTextPrompt}! "
-		else 
+		else
 			green " ================================================== "
 			red " 导入失败 请重新导入${importTextPrompt}镜像文件 ${dsmBootImgFileRealPath}"
 			red " 导入失败 或尝试用 ${promptTextFailureCommand} 命令重新导入"
@@ -1299,7 +1319,7 @@ function genPVEVMDiskWithQM(){
 			exit
 		fi
 	fi
-	
+
 }
 
 
@@ -1341,7 +1361,7 @@ function genPVEVMDiskPT(){
 		if [[ $HDDfilename == *"part"* ]]; then
 			echo "          -->> 分区${COUNTER2}: $HDDfilename"
 			COUNTER2=$[${COUNTER2} +1]
-		else 
+		else
 			echo
 			echo "HDD硬盘${COUNTER1} : $HDDfilename"
 			HDDArray[${COUNTER1}]="$HDDfilename"
@@ -1351,7 +1371,7 @@ function genPVEVMDiskPT(){
 	done
 
 	echo
-	# echo ${HDDArray[@]}  
+	# echo ${HDDArray[@]}
 
 	read -p "根据上面信息输入要选择的硬盘ID 编号, 直接回车默认为1:" dsmHDPTIdInput
 	dsmHDPTIdInput=${dsmHDPTIdInput:-1}
@@ -1365,17 +1385,17 @@ function genPVEVMDiskPT(){
 	green " 准备把硬盘 ${HDDArray[${dsmHDPTIdInput}]} 给虚拟机生成直通设备${dsmHDPTVMHDIdInput}  "
 
 	dsmHDPTResult=""
-		
+
 	echo "qm set ${dsmHDPTVMIdInput} -${dsmHDPTVMHDIdInput} /dev/disk/by-id/${HDDArray[${dsmHDPTIdInput}]} "
 	dsmHDPTResult=$(qm set ${dsmHDPTVMIdInput} -${dsmHDPTVMHDIdInput} /dev/disk/by-id/${HDDArray[${dsmHDPTIdInput}]})
 
 	echo "${dsmHDPTResult}"
 
-	isImportHDPTStorageSuccess=$(echo ${dsmHDPTResult} | grep "update VM") 
+	isImportHDPTStorageSuccess=$(echo ${dsmHDPTResult} | grep "update VM")
 
-	if [[ -n "$isImportHDPTStorageSuccess" ]]; then	
+	if [[ -n "$isImportHDPTStorageSuccess" ]]; then
 		green " 成功生成直通设备 ! 请运行虚拟机继续安装群晖! "
-	else 
+	else
 		green " ================================================== "
 		red " 导入直通设备失败 请检查设备ID是否正确 /dev/disk/by-id/${HDDArray[${dsmHDPTIdInput}]}"
 		green " ================================================== "
@@ -1452,7 +1472,7 @@ function DSMFixSNAndMac(){
 	green " ================================================== "
 	green " 准备开始半洗白群晖 需要准备好SN 序列号和网卡Mac地址"
 	green " 请用root 用户登录群晖系统的SSH 运行本命令"
-	green " ================================================== "	
+	green " ================================================== "
 
 	echo
 	echo "Run Command : blkid"
@@ -1490,7 +1510,7 @@ function DSMFixSNAndMac(){
 			echo "${dsmDeviceIDInput} is a block device. . Mount to /mnt/disk1"
 			mkdir -p /mnt/disk1
 			mount -o rw ${dsmDeviceIDInput} /mnt/disk1
-		fi	
+		fi
 	fi
 
 
@@ -1498,7 +1518,7 @@ function DSMFixSNAndMac(){
 	if [[ -f "/mnt/disk1/grub/grub.cfg" ]]; then
 		grubConfigFilePath="/mnt/disk1/grub/grub.cfg"
 		green " 已找到群晖引导分区配置文件 grub.cfg, 位置为 /mnt/disk1/grub/grub.cfg"
-	
+
 	elif  [[ -f "/mnt/disk2/grub/grub.cfg" ]]; then
 		grubConfigFilePath="/mnt/disk2/grub/grub.cfg"
 		green " 已找到群晖引导分区配置文件 grub.cfg, 位置为 /mnt/disk2/grub/grub.cfg"
@@ -1506,12 +1526,12 @@ function DSMFixSNAndMac(){
 	elif  [[ -f "/mnt/disk3/grub/grub.cfg" ]]; then
 		grubConfigFilePath="/mnt/disk3/grub/grub.cfg"
 		green " 已找到群晖引导分区配置文件 grub.cfg, 位置为 /mnt/disk3/grub/grub.cfg"
-				
+
 	else
 		green " ================================================== "
 		red " 没有找到群晖引导分区配置文件 grub.cfg, 修改失败 !"
 		green " ================================================== "
-		exit		
+		exit
 	fi
 
     if [[ $1 == "vi" ]] ; then
@@ -1540,14 +1560,14 @@ function DSMFixSNAndMac(){
 			green " ================================================== "
 			red " 输入的群晖洗白的SN序列号为空, 修改失败 请重新运行"
 			green " ================================================== "
-			exit		
+			exit
 		fi
 
 		if [[ -z "$dsmMACInput" ]]; then
 			green " ================================================== "
 			red " 输入的群晖洗白的网卡 MAC 地址 为空, 修改失败 请重新运行"
 			green " ================================================== "
-			exit		
+			exit
 		fi
 
 		${sudoCmd} sed -i "s/set sn=.*/set sn=${dsmSNInput}/g" ${grubConfigFilePath}
@@ -1588,9 +1608,9 @@ function DSMFixCPUInfo(){
 		cpuInfoChangeRealPath="./ch_cpuinfo"
 
 	elif [[ -f "/volume1/tools/ch_cpuinfo" ]]; then
-		cpuInfoChangeRealPath="/volume1/tools/ch_cpuinfo"	
+		cpuInfoChangeRealPath="/volume1/tools/ch_cpuinfo"
 
-	else 
+	else
 		echo
 		green " 请输入已上传 ch_cpuinfo 的路径: 直接回车默认为/volume1/tools/ch_cpuinfo "
 		green " 如果实际没有上传会自动从网上下载 ch_cpuinfo 命令, 直接回车即可 "
@@ -1649,12 +1669,12 @@ function DSMFixDevSynoboot(){
 		green " 群晖状态显示--当前是否有 /dev/synoboot 引导盘: $DSMStatusSynoboot "
 	else
         DSMStatusSynoboot="yes"
-		green " 群晖状态显示--当前是否有 /dev/synoboot 引导盘: $DSMStatusSynoboot 无需修复" 
+		green " 群晖状态显示--当前是否有 /dev/synoboot 引导盘: $DSMStatusSynoboot 无需修复"
 		green " ls /dev/synoboot* "
 		echo "$DSMStatusIsSynobootText"
 		echo
     fi
-	
+
 	if [[ -z "$DSMStatusIsSynobootText" ]]; then
 		green " 准备开始修复 /dev/synoboot 引导盘 缺失问题 "
 
@@ -1670,7 +1690,7 @@ function DSMFixDevSynoboot(){
 			wget -P ${HOME} https://github.com/jinwyp/one_click_script/raw/master/dsm/FixSynoboot.sh
 		fi
 
-		
+
 		${sudoCmd} chmod +x ${dsmFixSynobootPathInput}
 		${sudoCmd} cp ${dsmFixSynobootPathInput} /usr/local/etc/rc.d
 		${sudoCmd} chmod 0755 /usr/local/etc/rc.d/FixSynoboot.sh
@@ -1705,9 +1725,9 @@ function DSMFixNvmeSSD(){
 		nvmeSSDPatchRealPath="./libsynonvme.so.1"
 
 	elif [[ -f "/volume1/tools/libsynonvme.so.1" ]]; then
-		nvmeSSDPatchRealPath="/volume1/tools/libsynonvme.so.1"	
+		nvmeSSDPatchRealPath="/volume1/tools/libsynonvme.so.1"
 
-	else 
+	else
 		echo
 		green " 请输入已上传 libsynonvme.so.1 的路径: 直接回车默认为/volume1/tools/libsynonvme.so.1 "
 		green " 如果实际没有上传会自动从网上下载 libsynonvme.so.1, 直接回车即可 "
@@ -1733,7 +1753,7 @@ function DSMFixNvmeSSD(){
 		green " 原系统已存在 /usr/lib64/libsynonvme.so.1, 备份到 /usr/lib64/libsynonvme.so.1.bak "
 		${sudoCmd}  mv -f /usr/lib64/libsynonvme.so.1 /usr/lib64/libsynonvme.so.1.bak
 	fi
-	${sudoCmd} cp ${nvmeSSDPatchRealPath} /usr/lib64	
+	${sudoCmd} cp ${nvmeSSDPatchRealPath} /usr/lib64
 	echo
 	green " 修复识别 Nvme 固态硬盘成功, 请重启群晖!"
 	green " ================================================== "
@@ -1760,7 +1780,7 @@ function DSMCheckVideoCardPassThrough(){
     else
 		DSMStatusVideoCard="no"
     fi
-	
+
 
 	DSMStatusVideoCardSoftDecodeText=$(cat /usr/syno/etc/codec/activation.conf | grep "\"success\":true")
 
@@ -1777,7 +1797,7 @@ function DSMCheckVideoCardPassThrough(){
 	DSMStatusVideoCardHardwareDecodeText=$(cat /sys/kernel/debug/dri/0/i915_frequency_info | grep "HW control enabled")
 
 	if [[ $DSMStatusVideoCardHardwareDecodeText == *"yes"* ]]; then
-		
+
 		DSMStatusVideoCardHardwareDecode="yes"
 		echo
 		echo "cat /sys/kernel/debug/dri/0/i915_frequency_info"
@@ -1854,54 +1874,54 @@ function getGithubLatestReleaseVersion(){
 }
 
 
-function checkInvalidIp(){ 
+function checkInvalidIp(){
 	if [[ $1 =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
-		green "输入的IP $1 地址格式正确, 继续安装..." 
-		false 
+		green "输入的IP $1 地址格式正确, 继续安装..."
+		false
 	else
-		red "输入的IP $1 地址格式不正确. 请重新输入" 
+		red "输入的IP $1 地址格式不正确. 请重新输入"
 		inputFrpServerPort $2
 	fi
 }
 
-function checkPortInUse(){ 
+function checkPortInUse(){
 
 	if [[ $1 -gt 1 && $1 -le 65535 ]]; then
-		
-		netstat -tulpn | grep [0-9]:$1 -q ; 
-		if [ $? -eq 1 ]; then 
-			green "输入的端口号 $1 没有被占用, 继续安装..." 
-			false 
-		else 
-			red "输入的端口号 $1 已被占用! 请检查端口是否已被占用, 然后重新运行脚本安装" 
+
+		netstat -tulpn | grep [0-9]:$1 -q ;
+		if [ $? -eq 1 ]; then
+			green "输入的端口号 $1 没有被占用, 继续安装..."
+			false
+		else
+			red "输入的端口号 $1 已被占用! 请检查端口是否已被占用, 然后重新运行脚本安装"
 			true
 			exit
 		fi
 	else
-		red "输入的端口号错误! 必须是[1-65535]. 请重新输入" 
+		red "输入的端口号错误! 必须是[1-65535]. 请重新输入"
 		inputFrpServerPort $2
 	fi
 }
 
 
-function inputFrpServerPort(){ 
+function inputFrpServerPort(){
 	echo ""
 	if [[ $1 == "text_FRP_bind_port" ]]; then
 		read -p "请输入 Frps 服务器 通讯端口, 必须是纯数字 范围[1-65535], 默认7000. 请输入纯数字:" FRP_bind_port
 		FRP_bind_port=${FRP_bind_port:-7000}
-		checkPortInUse "${FRP_bind_port}" $1 
+		checkPortInUse "${FRP_bind_port}" $1
 	fi
 
 	if [[ $1 == "text_FRP_vhost_http_port" ]]; then
 		read -p "请输入 Frps 服务器 Web Http 监听端口, 必须是纯数字 范围[1-65535], 默认80. 请输入纯数字:" FRP_vhost_http_port
 		FRP_vhost_http_port=${FRP_vhost_http_port:-80}
-		checkPortInUse "${FRP_vhost_http_port}" $1 
+		checkPortInUse "${FRP_vhost_http_port}" $1
 	fi
 
 	if [[ $1 == "text_FRP_vhost_https_port" ]]; then
 		read -p "请输入 Frps 服务器 Web Https 监听端口, 必须是纯数字 范围[1-65535], 默认443. 请输入纯数字:" FRP_vhost_https_port
 		FRP_vhost_https_port=${FRP_vhost_https_port:-443}
-		checkPortInUse "${FRP_vhost_https_port}" $1 
+		checkPortInUse "${FRP_vhost_https_port}" $1
 	fi
 
 	if [[ $1 == "text_FRP_bind_udp_port" ]]; then
@@ -1910,18 +1930,18 @@ function inputFrpServerPort(){
 		if [ $FRP_bind_udp_port -gt 65535 ]; then
 			FRP_bind_udp_port=7001
 		fi
-		checkPortInUse "${FRP_bind_udp_port}" $1 
+		checkPortInUse "${FRP_bind_udp_port}" $1
 	fi
 
 
 	if [[ $1 == "text_FRP_dashboard_port" ]]; then
 		read -p "请输入 Frps 服务器 管理界面端口, 必须是纯数字 范围[1-65535], 默认7500. 请输入纯数字:" FRP_dashboard_port
 		FRP_dashboard_port=${FRP_dashboard_port:-7500}
-		checkPortInUse "${FRP_dashboard_port}" $1 
+		checkPortInUse "${FRP_dashboard_port}" $1
 	fi
 
 	if [[ $1 == "text_FRP_dashboard_user" ]]; then
-		read -p "请输入 Frps 服务器 登录管理界面的用户名, 默认为 admin, 请输入用户名:" FRP_dashboard_user 
+		read -p "请输入 Frps 服务器 登录管理界面的用户名, 默认为 admin, 请输入用户名:" FRP_dashboard_user
 		FRP_dashboard_user=${FRP_dashboard_user:-admin}
 	fi
 
@@ -1942,7 +1962,7 @@ function inputFrpServerPort(){
 	if [[ $1 == "text_FRP_server_addr" ]]; then
 		read -p "请输入要连接的 Frps 服务器IP地址, 直接回车默认1.1.1.1, 该项为必填项 请输入:" FRP_server_addr
 		FRP_server_addr=${FRP_server_addr:-1.1.1.1}
-		checkInvalidIp "${FRP_server_addr}" $1 
+		checkInvalidIp "${FRP_server_addr}" $1
 	fi
 
 	if [[ $1 == "text_FRP_server_port" ]]; then
@@ -1961,7 +1981,7 @@ function inputFrpServerPort(){
 
 		if [[ ${FRP_protocol_input} == [Yy] ]]; then
 			FRP_protocol="kcp"
-		else 
+		else
 			FRP_protocol="tcp"
 		fi
 	fi
@@ -1969,11 +1989,11 @@ function inputFrpServerPort(){
 	if [[ $1 == "text_FRP_admin_port" ]]; then
 		read -p "请输入 Frpc 客户端 管理界面端口, 必须是纯数字 范围[1-65535], 默认为7400. 请输入纯数字:" FRP_admin_port
 		FRP_admin_port=${FRP_admin_port:-7400}
-		checkPortInUse "${FRP_admin_port}" $1 
+		checkPortInUse "${FRP_admin_port}" $1
 	fi
 
 	if [[ $1 == "text_FRP_admin_user" ]]; then
-		read -p "请输入 Frpc 客户端 登录管理界面的用户名, 默认为 admin. 请输入用户名:" FRP_admin_user 
+		read -p "请输入 Frpc 客户端 登录管理界面的用户名, 默认为 admin. 请输入用户名:" FRP_admin_user
 		FRP_admin_user=${FRP_admin_user:-admin}
 	fi
 
@@ -2044,7 +2064,7 @@ function installFRP(){
 			green "    是否继续安装命令行版本的 ${installFrpPromptText} ?"
 			echo
 			promptContinueOpeartion
-		fi	
+		fi
 	fi
 
    	if [ -f ${configFrpPathBin}/${installFrpType} ]; then
@@ -2057,7 +2077,7 @@ function installFRP(){
 	disableSelinux
 
 	getVersionFRPFilename
-	
+
 
 	FRP_SERVER_IP=$(wget -qO- ip.clang.cn | sed -r 's/\r//')
 	FRP_Client_IP=$(ifconfig | grep -Eo 'inet (addr:)?([0-9]*\.){3}[0-9]*' | grep -Eo '([0-9]*\.){3}[0-9]*' | grep -v '127.0.0.1')
@@ -2068,8 +2088,8 @@ function installFRP(){
 		echo -e "   当前服务器IP: ${COLOR_GREEN} ${FRP_SERVER_IP} ${COLOR_END}"
 	else
 		echo -e "   当前主机IP (FRP 客户端): ${COLOR_GREEN} ${FRP_Client_IP} ${COLOR_END}"
-	fi	
-    
+	fi
+
     green " =================================================="
 	echo ""
 
@@ -2101,18 +2121,18 @@ function installFRP(){
 	fi
 
 
-	mkdir -p ${configFrpPath} 
-	mkdir -p ${configFrpPathBin} 
-	mkdir -p ${configFrpPathIni} 
+	mkdir -p ${configFrpPath}
+	mkdir -p ${configFrpPathBin}
+	mkdir -p ${configFrpPathIni}
 
-	cd ${configFrpPath} 
+	cd ${configFrpPath}
 
 	# 下载并移动frp文件
 	# https://github.com/fatedier/frp/releases/download/v0.36.2/frp_0.36.2_linux_amd64.tar.gz
 
 	wget -P ${configFrpPath} https://github.com/fatedier/frp/releases/download/v${versionFRP}/${downloadFilenameFRP}
 	tar -zxf ${configFrpPath}/${downloadFilenameFRP} -C ${configFrpPath}
-	
+
 	cd ${downloadFilenameFRPFolder}
 
 
@@ -2179,7 +2199,7 @@ local_port = 53
 remote_port = 6000
 
 
-# http 网站 本地运行在80端口  
+# http 网站 本地运行在80端口
 [web-xxxx1]
 type = http
 local_ip = ${FRP_Client_IP}
@@ -2187,7 +2207,7 @@ local_port = 80
 custom_domains = www.example.com
 
 
-# https 网站 本地运行在443端口  
+# https 网站 本地运行在443端口
 [web-xxxx2]
 type = https
 local_ip = ${FRP_Client_IP}
@@ -2265,9 +2285,9 @@ EOF
 	rm -rf ${configFrpPath}/${downloadFilenameFRPFolder}
 	${sudoCmd} chmod +x ${osSystemMdPath}${installFrpType}.service
 	${sudoCmd} systemctl daemon-reload
-	${sudoCmd} systemctl enable ${installFrpType}.service 
+	${sudoCmd} systemctl enable ${installFrpType}.service
 	${sudoCmd} systemctl start ${installFrpType}.service
-	${sudoCmd} systemctl status ${installFrpType}.service 
+	${sudoCmd} systemctl status ${installFrpType}.service
 
 	echo
 	green "======================================================================"
@@ -2283,7 +2303,7 @@ EOF
 
 	if [[ $1 == "frps" ]] ; then
 
-		green "    ${installFrpPromptText} 管理后台地址 http://${FRP_SERVER_IP}:${FRP_dashboard_port}"	
+		green "    ${installFrpPromptText} 管理后台地址 http://${FRP_SERVER_IP}:${FRP_dashboard_port}"
 		echo
 		green "    ${installFrpPromptText} 配置如下: "
 		green "    bind_udp_port = ${FRP_bind_port} "
@@ -2297,7 +2317,7 @@ EOF
 
 	else
 
-		green "    ${installFrpPromptText} 管理后台地址 http://${FRP_Client_IP}:${FRP_admin_port}"	
+		green "    ${installFrpPromptText} 管理后台地址 http://${FRP_Client_IP}:${FRP_admin_port}"
 		echo
 		green "    ${installFrpPromptText} 配置如下:  "
 		green "    server_addr = ${FRP_server_addr} "
@@ -2325,12 +2345,12 @@ EOF
 
 ${installFrpPromptText} ${versionFRP} 安装成功
 ${installFrpPromptText} 可执行文件路径 ${configFrpPathBin}/${installFrpType}
-${installFrpPromptText} 配置路径 ${configFrpPathIni}/${installFrpType}.ini 
+${installFrpPromptText} 配置路径 ${configFrpPathIni}/${installFrpType}.ini
 
 ${installFrpPromptText} 访问日志 ${configFrpLogFile} 或运行 journalctl -n 50 -u ${installFrpType}.service 查看
 
-${installFrpPromptText} 查看运行状态: systemctl status ${installFrpType} 
-${installFrpPromptText} 停止命令: systemctl stop ${installFrpType}  
+${installFrpPromptText} 查看运行状态: systemctl status ${installFrpType}
+${installFrpPromptText} 停止命令: systemctl stop ${installFrpType}
 ${installFrpPromptText} 启动命令: systemctl start ${installFrpType}
 ${installFrpPromptText} 重启命令: systemctl restart ${installFrpType}
 
@@ -2362,15 +2382,15 @@ EOF
 
 	else
 		cat > ${configFrpPath}/frp_readme.txt <<-EOF
-	
+
 ${installFrpPromptText} ${versionFRP} 安装成功
 ${installFrpPromptText} 可执行文件路径 ${configFrpPathBin}/${installFrpType}
-${installFrpPromptText} 配置路径 ${configFrpPathIni}/${installFrpType}.ini 
+${installFrpPromptText} 配置路径 ${configFrpPathIni}/${installFrpType}.ini
 
 ${installFrpPromptText} 访问日志 ${configFrpLogFile} 或运行 journalctl -n 50 -u ${installFrpType}.service 查看
 
-${installFrpPromptText} 查看运行状态: systemctl status ${installFrpType} 
-${installFrpPromptText} 停止命令: systemctl stop ${installFrpType} 
+${installFrpPromptText} 查看运行状态: systemctl status ${installFrpType}
+${installFrpPromptText} 停止命令: systemctl stop ${installFrpType}
 ${installFrpPromptText} 启动命令: systemctl start ${installFrpType}
 ${installFrpPromptText} 重启命令: systemctl restart ${installFrpType}
 
@@ -2412,7 +2432,7 @@ function checkFRPInstalledStatus(){
 		echo ""
 	else
 		echo ""
-		red " 当前系统中 没有安装 FRP ，请检查 ! "	
+		red " 当前系统中 没有安装 FRP ，请检查 ! "
 		echo ""
 		exit 255
 	fi
@@ -2460,17 +2480,17 @@ function upgradeFRP(){
 	if [ "$1" != "dsmspk" ] ; then
 		${sudoCmd} systemctl stop ${installFrpType}.service
 	fi
-	
-	
-	mkdir -p ${configFrpPath} 
-	cd ${configFrpPath} 
+
+
+	mkdir -p ${configFrpPath}
+	cd ${configFrpPath}
 
 	# 下载并移动frpc文件
 	# https://github.com/fatedier/frp/releases/download/v0.36.2/frp_0.36.2_linux_amd64.tar.gz
 
 	wget -P ${configFrpPath} https://github.com/fatedier/frp/releases/download/v${versionFRP}/${downloadFilenameFRP}
 	tar -zxf ${configFrpPath}/${downloadFilenameFRP} -C ${configFrpPath}
-	
+
 	cd ${downloadFilenameFRPFolder}
 
 	if [[ "${osRelease}" == "centos" ]]; then
@@ -2545,11 +2565,11 @@ function checkLogFRP(){
 		echo ""
 		green " 查看日志操作说明"
 		echo ""
-		red " 退出查看日志 请按 Ctrl+C 后, 再按 q 键" 
+		red " 退出查看日志 请按 Ctrl+C 后, 再按 q 键"
 		echo ""
-		red " 按 Ctrl+C 后, 通过'上下'键浏览, 'f,b' 键前后翻整页, 'd,u' 键翻半页 " 
+		red " 按 Ctrl+C 后, 通过'上下'键浏览, 'f,b' 键前后翻整页, 'd,u' 键翻半页 "
 		echo ""
-		red " 更多用法请查看 less 命令 " 
+		red " 更多用法请查看 less 命令 "
 		echo ""
 		promptContinueOpeartion
 		less +F ${configFrpLogFile}
@@ -2613,7 +2633,7 @@ function subMenuInstallFRP(){
         ;;
         10 )
             checkLogFRP "edit"
-        ;;     		             
+        ;;
         11)
             checkLogFRP
         ;;
@@ -2682,12 +2702,12 @@ function subMenuInstallFRP(){
 function start_menu(){
     clear
 	set_text_color
-	
+
     if [[ $1 == "first" ]] ; then
 		getLinuxOSRelease
         installSoft
     fi
-	
+
     green " ===================================================================================================="
     green " PVE 虚拟机 和 群晖 工具脚本 | 2023-08-17 | By jinwyp | 系统支持：PVE / debian10 "
     green " ===================================================================================================="
@@ -2715,12 +2735,12 @@ function start_menu(){
 	green " 24. 群晖工具 使用vi 编辑/etc/host 文件"
 	green " 25. 群晖补丁 修复DSM 6.2.3 找不到/dev/synoboot 从而升级失败问题"
 	green " 26. 群晖补丁 修复CPU型号显示错误"
-	green " 27. 群晖补丁 正确识别 Nvme 固态硬盘"	
-	green " 28. 群晖检测 是否有显卡或是否显卡直通成功 支持硬解"	
+	green " 27. 群晖补丁 正确识别 Nvme 固态硬盘"
+	green " 28. 群晖检测 是否有显卡或是否显卡直通成功 支持硬解"
 	echo
-	green " 51. 局域网测速工具 安装测速软件 iperf3"	
-	green " 52. 子菜单 安装 FRP 内网穿透工具"	
-	green " 70. 更换系统软件源为阿里云"	
+	green " 51. 局域网测速工具 安装测速软件 iperf3"
+	green " 52. 子菜单 安装 FRP 内网穿透工具"
+	green " 70. 更换系统软件源为阿里云"
 	echo
     green " 0. 退出脚本"
     echo
@@ -2728,16 +2748,16 @@ function start_menu(){
     case "$menuNumberInput" in
         1 )
             updatePVEAptSource
-        ;;	
+        ;;
         2 )
             deleteVGLVPVESwap
-        ;;	
+        ;;
         3 )
             deleteVGLVPVEData
-        ;;					
+        ;;
         4 )
             setPVEIP
-        ;;					
+        ;;
         6 )
             enableIOMMU
         ;;
@@ -2756,10 +2776,10 @@ function start_menu(){
         ;;
         11 )
             setIPOPENWRT
-        ;;			
+        ;;
         14)
             genPVEVMDiskWithQM "qm" "openwrt"
-        ;;		
+        ;;
         15 )
             genPVEVMDiskWithQM "qm"
         ;;
@@ -2768,44 +2788,44 @@ function start_menu(){
         ;;
         17 )
             genPVEVMDiskPT
-        ;;	
+        ;;
         21 )
             DSMOpenSSHRoot
-        ;;				
+        ;;
         22 )
-            DSMFixSNAndMac 
-        ;;				
+            DSMFixSNAndMac
+        ;;
         23 )
             DSMFixSNAndMac "vi"
-        ;;	
+        ;;
         24 )
             DSMEditHosts
-        ;;				
+        ;;
         25 )
-            DSMFixDevSynoboot  
-        ;;	
+            DSMFixDevSynoboot
+        ;;
         26 )
             DSMFixCPUInfo
-        ;;						
+        ;;
         27 )
             DSMFixNvmeSSD
-        ;;		
+        ;;
         28 )
-            DSMCheckVideoCardPassThrough 
+            DSMCheckVideoCardPassThrough
         ;;
         51 )
-            installIperf3 
-        ;;		
+            installIperf3
+        ;;
         52 )
-            subMenuInstallFRP 
+            subMenuInstallFRP
         ;;
         70 )
             updateYumAptSource
-        ;;					
+        ;;
         88 )
             checkFirewallStatus
-        ;;								
-								
+        ;;
+
         0 )
             exit 1
         ;;
